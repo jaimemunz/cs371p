@@ -1,3 +1,13 @@
 .DS_Store
-CS371p.bbprojectd
+*.dSYM
+*.gcda
+*.gcno
+*.gcov
+*.plist
+darwin-tests
+Doxyfile
 Icon?
+RunDarwin
+RunDarwin.tmp
+TestDarwin
+TestDarwin.tmp

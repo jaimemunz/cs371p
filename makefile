@@ -1,4 +1,24 @@
+.PHONY: Darwin.log
+
 .DEFAULT_GOAL := test
+
+FILES :=                            \
+    .gitignore                      \
+    Darwin.c++                      \
+    Darwin.h                        \
+    Darwin.log                      \
+    html                            \
+    makefile                        \
+    RunDarwin.c++                   \
+    RunDarwin.out                   \
+    TestDarwin.c++                  \
+    TestDarwin.out
+
+# uncomment these:
+#    .travis.yml                     \
+#    darwin-tests/EID-RunDarwin.out  \
+#    darwin-tests/EID-TestDarwin.c++ \
+#    darwin-tests/EID-TestDarwin.out \
 
 ifeq ($(shell uname), Darwin)                                           # Apple
     CXX          := g++
@@ -50,61 +70,88 @@ else                                                                    # UTCS
     CLANG-FORMAT := clang-format-3.8
 endif
 
+darwin-tests:
+	git clone https://github.com/cs371p-fall-2016/darwin-tests.git
+
+html: Doxyfile Darwin.h Darwin.c++ RunDarwin.c++ TestDarwin.c++
+	doxygen Doxyfile
+
+Darwin.log:
+	git log > Darwin.log
+
+Doxyfile:
+	doxygen -g
+
+# Make the following edits to Doxyfile.
+# EXTRACT_ALL            = YES
+# EXTRACT_PRIVATE        = YES
+# EXTRACT_STATIC         = YES
+
+RunDarwin: Darwin.h Darwin.c++ RunDarwin.c++
+	$(CXX) $(CXXFLAGS) Darwin.c++ RunDarwin.c++ -o RunDarwin
+	-$(CLANG-CHECK) -extra-arg=-std=c++11          Darwin.c++     --
+	-$(CLANG-CHECK) -extra-arg=-std=c++11 -analyze Darwin.c++     --
+	-$(CLANG-CHECK) -extra-arg=-std=c++11          RunDarwin.c++  --
+	-$(CLANG-CHECK) -extra-arg=-std=c++11 -analyze RunDarwin.c++  --
+
+RunDarwin.tmp: RunDarwin
+	./RunDarwin > RunDarwin.tmp
+	diff RunDarwin.tmp RunDarwin.out
+
+TestDarwin: Darwin.h Darwin.c++ TestDarwin.c++
+	$(CXX) $(CXXFLAGS) $(GCOVFLAGS) Darwin.c++ TestDarwin.c++ -o TestDarwin $(LDFLAGS)
+	-$(CLANG-CHECK) -extra-arg=-std=c++11          TestDarwin.c++ --
+	-$(CLANG-CHECK) -extra-arg=-std=c++11 -analyze TestDarwin.c++ --
+
+TestDarwin.tmp: TestDarwin
+	$(VALGRIND) ./TestDarwin                               >  TestDarwin.tmp 2>&1
+	$(GCOV) -b Darwin.c++ | grep -A 5 "File 'Darwin.c++'" >> TestDarwin.tmp
+	cat TestDarwin.tmp
+
+check:
+	@not_found=0;                                 \
+    for i in $(FILES);                            \
+    do                                            \
+        if [ -e $$i ];                            \
+        then                                      \
+            echo "$$i found";                     \
+        else                                      \
+            echo "$$i NOT FOUND";                 \
+            not_found=`expr "$$not_found" + "1"`; \
+        fi                                        \
+    done;                                         \
+    if [ $$not_found -ne 0 ];                     \
+    then                                          \
+        echo "$$not_found failures";              \
+        exit 1;                                   \
+    fi;                                           \
+    echo "success";
+
 clean:
-	cd examples; make clean
-	@echo
-	cd exercises; make clean
-	@echo
-	cd projects/collatz; make clean
-	@echo
-	cd projects/allocator; make clean
-	@echo
-	cd projects/darwin; make clean
+	rm -f  *.bin
+	rm -f  *.db
+	rm -f  *.gcda
+	rm -f  *.gcno
+	rm -f  *.gcov
+	rm -f  *.plist
+	rm -f  Darwin.log
+	rm -f  Doxyfile
+	rm -f  RunDarwin
+	rm -f  RunDarwin.tmp
+	rm -f  TestDarwin
+	rm -f  TestDarwin.tmp
+	rm -rf *.dSYM
+	rm -rf html
+	rm -rf latex
 
 config:
 	git config -l
 
-docker-build:
-	docker build -t gpdowning/gcc .
-
-docker-pull:
-	docker pull gpdowning/gcc
-
-docker-push:
-	docker push gpdowning/gcc
-
-docker-run:
-	docker run -it -v $(PWD):/usr/cs371p -w /usr/cs371p gpdowning/gcc
-
-init:
-	touch README
-	git init
-	git add README
-	git commit -m 'first commit'
-	git remote add origin git@github.com:gpdowning/cs371p.git
-	git push -u origin master
-
-pull:
-	make clean
-	@echo
-	git pull
-	git status
-
-push:
-	make clean
-	@echo
-	git add .gitignore
-	git add .travis.yml
-	git add Dockerfile
-	git add examples
-	git add exercises
-	git add makefile
-	git add projects/collatz
-	git add projects/allocator
-	git add projects/darwin
-	git commit -m "another commit"
-	git push
-	git status
+format:
+	$(CLANG-FORMAT) -i Darwin.c++
+	$(CLANG-FORMAT) -i Darwin.h
+	$(CLANG-FORMAT) -i RunDarwin.c++
+	$(CLANG-FORMAT) -i TestDarwin.c++
 
 status:
 	make clean
@@ -113,103 +160,7 @@ status:
 	git remote -v
 	git status
 
-sync:
-	@rsync -r -t -u -v --delete              \
-    --include "Hello.c++"                    \
-    --include "Docker.sh"                    \
-    --include "Assertions.c++"               \
-    --include "UnitTests1.c++"               \
-    --include "UnitTests2.c++"               \
-    --include "UnitTests3.c++"               \
-    --include "Coverage1.c++"                \
-    --include "Coverage2.c++"                \
-    --include "Coverage3.c++"                \
-    --include "Exceptions.c++"               \
-    --include "Variables.c++"                \
-    --include "Types.c++"                    \
-    --include "Operators.c++"                \
-    --include "Arguments.c++"                \
-    --include "BoostSerialization.c++"       \
-    --include "Iterators.c++"                \
-    --include "Cache.c++"                    \
-    --include "Returns.c++"                  \
-    --include "Consts.c++"                   \
-    --include "Arrays.c++"                   \
-    --include "FunctionOverloading.c++"      \
-    --include "Move.c++"                     \
-    --include "Classes.c++"                  \
-    --exclude "*"                            \
-    ../../examples/c++/ examples
-	@rsync -r -t -u -v --delete              \
-    --include "IsPrime1.c++"                 \
-    --include "IsPrime1.h"                   \
-    --include "IsPrime2.c++"                 \
-    --include "IsPrime2.h"                   \
-    --include "Incr.c++"                     \
-    --include "Incr.h"                       \
-    --include "Equal.c++"                    \
-    --include "Equal.h"                      \
-    --include "Copy.c++"                     \
-    --include "Copy.h"                       \
-    --include "Fill.c++"                     \
-    --include "Fill.h"                       \
-    --include "RMSE.c++"                     \
-    --include "RMSE.h"                       \
-    --include "AllOf.c++"                    \
-    --include "AllOf.h"                      \
-    --include "RangeIterator.c++"            \
-    --include "RangeIterator.h"              \
-    --include "Range.c++"                    \
-    --include "Range.h"                      \
-    --include "Vector1.c++"                  \
-    --include "Vector1.h"                    \
-    --include "Vector2.c++"                  \
-    --include "Vector2.h"                    \
-    --include "Vector3.c++"                  \
-    --include "Vector3.h"                    \
-    --include "Memory.h"                     \
-    --include "Vector4.c++"                  \
-    --exclude "*"                            \
-    ../../exercises/c++/ exercises
-	@rsync -r -t -u -v --delete              \
-    --include "Collatz.c++"                  \
-    --include "Collatz.h"                    \
-    --include "RunCollatz.c++"               \
-    --include "RunCollatz.in"                \
-    --include "RunCollatz.out"               \
-    --include "TestCollatz.c++"              \
-    --include "TestCollatz.out"              \
-    --exclude "*"                            \
-    ../../projects/c++/collatz/ projects/collatz
-	@rsync -r -t -u -v --delete              \
-    --include "Allocator.h"                  \
-    --include "TestAllocator.c++"            \
-    --include "TestAllocator.out"            \
-    --exclude "*"                            \
-    ../../projects/c++/allocator/ projects/allocator
-	@rsync -r -t -u -v --delete              \
-    --include "Darwin.c++"                   \
-    --include "Darwin.h"                     \
-    --include "RunDarwin.c++"                \
-    --include "RunDarwin.in"                 \
-    --include "RunDarwin.out"                \
-    --include "TestDarwin.c++"               \
-    --include "TestDarwin.out"               \
-    --exclude "*"                            \
-    ../../projects/c++/darwin/ projects/darwin
-
-test:
-	make clean
-	@echo
-	cd examples; make test
-	@echo
-	cd exercises; make test
-	@echo
-	cd projects/collatz; make test
-	@echo
-	cd projects/allocator; make test
-	@echo
-	-cd projects/darwin; make test
+test: html Darwin.log RunDarwin.tmp TestDarwin.tmp darwin-tests check
 
 versions:
 	which make
